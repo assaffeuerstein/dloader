@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>dloader</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>dloader</h1>
+        <p>Download videos with yt-dlp into your mounted volume.</p>
+      </header>
+
+      <form method="post" action="/download" class="card">
+        <label>
+          Video URL
+          <input type="url" name="url" placeholder="https://..." required />
+        </label>
+
+        <label>
+          Subdirectory under /download (optional)
+          <input type="text" name="subdir" placeholder="movies/2026" />
+          <span class="hint">Allowed: letters, numbers, dots, dashes, underscores, and /</span>
+        </label>
+
+        <button type="submit">Download</button>
+      </form>
+
+      {% if error %}
+      <div class="alert error">{{ error }}</div>
+      {% endif %}
+
+      {% if success %}
+      <div class="alert success">{{ success }}</div>
+      {% endif %}
+
+      {% if log %}
+      <pre class="log">{{ log }}</pre>
+      {% endif %}
+
+      <section class="card">
+        <h2>Run Example</h2>
+        <pre>docker run --rm -p 8000:8000 -v /path/on/host:/download dloader:latest</pre>
+      </section>
+    </main>
+  </body>
+</html>
