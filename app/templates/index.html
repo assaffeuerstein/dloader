@@ -13,36 +13,13 @@
         <p>Download videos with yt-dlp into your mounted volume.</p>
       </header>
 
-      {% macro render_nodes(nodes) %}
-        <ul class="tree">
-          {% for node in nodes %}
-          <li>
-            {% if node.children %}
-            <details class="folder-group" open>
-              <summary>
-                <button type="button" class="folder-btn" data-path="{{ node.path }}">{{ node.name }}</button>
-              </summary>
-              {{ render_nodes(node.children) }}
-            </details>
-            {% else %}
-            <button type="button" class="folder-btn leaf" data-path="{{ node.path }}">{{ node.name }}</button>
-            {% endif %}
-          </li>
-          {% endfor %}
-        </ul>
-      {% endmacro %}
-
       <form method="post" action="/download" class="card">
         <label>
           Video URL
           <input type="url" name="url" placeholder="https://..." value="{{ url or '' }}" required />
         </label>
 
-        <label>
-          Subdirectory under /download (optional)
-          <input id="subdir-input" type="text" name="subdir" placeholder="movies/2026" value="{{ subdir or '' }}" />
-          <span class="hint">Allowed: letters, numbers, dots, dashes, underscores, and /</span>
-        </label>
+        <input type="hidden" name="browse_path" value="{{ browse_path or '' }}" />
 
         <div class="explorer">
           <div class="explorer-header">
@@ -50,11 +27,89 @@
             <span class="hint">Click a folder to fill the field above. You can also type a new path to create it.</span>
           </div>
           {% if dirs %}
-          <div class="explorer-body">
-            {{ render_nodes(dirs) }}
+          <div class="explorer-body explorer-split">
+            <div class="explorer-pane">
+              <div class="explorer-toolbar">
+                <div class="breadcrumbs">
+                  <button type="button" class="crumb" data-path="">/download</button>
+                  {% if browse_path %}
+                    {% set parts = browse_path.split('/') %}
+                    {% set running = [] %}
+                    {% for part in parts %}
+                      {% set _ = running.append(part) %}
+                      <span class="crumb-sep">/</span>
+                      <button type="button" class="crumb" data-path="{{ '/'.join(running) }}">{{ part }}</button>
+                    {% endfor %}
+                  {% endif %}
+                </div>
+                <div class="toolbar-actions">
+                  {% if browse_path %}
+                  <button type="button" class="nav-btn" data-up="1">Up</button>
+                  {% endif %}
+                  <button type="button" class="nav-btn" data-select="1">Select current</button>
+                </div>
+              </div>
+              <div class="explorer-list">
+                {% for name in dirs %}
+                {% set next_path = browse_path ~ '/' ~ name if browse_path else name %}
+                <button type="button" class="folder-row" data-path="{{ next_path }}" data-name="{{ name }}">
+                  <span class="folder-icon">📁</span>
+                  {{ name }}
+                </button>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="explorer-pane right">
+              <div class="pane-title">Selected destination</div>
+              <div class="current-path">/download{% if browse_path %}/{{ browse_path }}{% endif %}</div>
+              <label class="inline-label">
+                Subdirectory under /download (optional)
+                <input id="subdir-input" type="text" name="subdir" placeholder="movies/2026" value="{{ subdir or '' }}" />
+                <span class="hint">Allowed: letters, numbers, dots, dashes, underscores, and /</span>
+              </label>
+              <div class="pane-actions">
+                <button type="button" class="nav-btn" data-select="1">Use current folder</button>
+              </div>
+            </div>
           </div>
           {% else %}
-          <p class="hint">No folders found yet under /download.</p>
+          <p class="hint">No folders found yet under /download{% if browse_path %}/{{ browse_path }}{% endif %}.</p>
+          <div class="explorer-body explorer-split">
+            <div class="explorer-pane">
+              <div class="explorer-toolbar">
+                <div class="breadcrumbs">
+                  <button type="button" class="crumb" data-path="">/download</button>
+                  {% if browse_path %}
+                    {% set parts = browse_path.split('/') %}
+                    {% set running = [] %}
+                    {% for part in parts %}
+                      {% set _ = running.append(part) %}
+                      <span class="crumb-sep">/</span>
+                      <button type="button" class="crumb" data-path="{{ '/'.join(running) }}">{{ part }}</button>
+                    {% endfor %}
+                  {% endif %}
+                </div>
+                <div class="toolbar-actions">
+                  {% if browse_path %}
+                  <button type="button" class="nav-btn" data-up="1">Up</button>
+                  {% endif %}
+                  <button type="button" class="nav-btn" data-select="1">Select current</button>
+                </div>
+              </div>
+            </div>
+            <div class="explorer-pane right">
+              <div class="pane-title">Selected destination</div>
+              <div class="current-path">/download{% if browse_path %}/{{ browse_path }}{% endif %}</div>
+              <label class="inline-label">
+                Subdirectory under /download (optional)
+                <input id="subdir-input" type="text" name="subdir" placeholder="movies/2026" value="{{ subdir or '' }}" />
+                <span class="hint">Allowed: letters, numbers, dots, dashes, underscores, and /</span>
+              </label>
+              <div class="pane-actions">
+                <button type="button" class="nav-btn" data-select="1">Use current folder</button>
+              </div>
+            </div>
+          </div>
           {% endif %}
         </div>
 
@@ -73,25 +128,40 @@
       <pre class="log">{{ log }}</pre>
       {% endif %}
 
-      <section class="card">
-        <h2>Run Example</h2>
-        <pre>docker run --rm -p 8000:8000 -v /path/on/host:/download dloader:latest</pre>
-      </section>
     </main>
     <script>
       const input = document.getElementById("subdir-input");
-      const buttons = Array.from(document.querySelectorAll(".folder-btn"));
       const selectPath = (path) => {
         input.value = path || "";
-        buttons.forEach((btn) => {
-          btn.classList.toggle("selected", btn.dataset.path === path);
-        });
       };
-      buttons.forEach((button) => {
-        button.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          selectPath(button.dataset.path || "");
+      document.querySelectorAll(".folder-row").forEach((button) => {
+        button.addEventListener("click", () => {
+          const path = button.dataset.path || "";
+          selectPath(path);
+          const next = path ? `/?path=${encodeURIComponent(path)}` : "/";
+          window.location.assign(next);
+        });
+      });
+      document.querySelectorAll(".crumb").forEach((button) => {
+        button.addEventListener("click", () => {
+          const path = button.dataset.path || "";
+          const next = path ? `/?path=${encodeURIComponent(path)}` : "/";
+          window.location.assign(next);
+        });
+      });
+      document.querySelectorAll(".nav-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          if (button.dataset.up) {
+            const current = "{{ browse_path or '' }}";
+            const parts = current.split("/").filter(Boolean);
+            parts.pop();
+            const next = parts.length ? `/?path=${encodeURIComponent(parts.join("/"))}` : "/";
+            window.location.assign(next);
+            return;
+          }
+          if (button.dataset.select) {
+            selectPath("{{ browse_path or '' }}");
+          }
         });
       });
       if (input.value) {

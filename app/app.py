@@ -26,44 +26,33 @@ def resolve_target_dir(subdir: str) -> Path:
     return target
 
 
-def list_directories(root: Path) -> list[dict[str, object]]:
-    if not root.exists():
+def list_children(root: Path, subdir: str) -> list[str]:
+    try:
+        target = resolve_target_dir(subdir)
+    except ValueError:
         return []
-    root = root.resolve()
-    tree: dict[str, dict] = {}
-
-    for current, dirs, _files in os.walk(root):
-        rel = Path(current).relative_to(root)
-        depth = 0 if rel == Path(".") else len(rel.parts)
-        if depth >= MAX_DIR_DEPTH:
-            dirs.clear()
-            continue
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
-        dirs.sort()
-
-        node = tree
-        if rel != Path("."):
-            for part in rel.parts:
-                node = node.setdefault(part, {})
-        for name in dirs:
-            node.setdefault(name, {})
-
-    def to_nodes(mapping: dict[str, dict], parent_path: str = "") -> list[dict[str, object]]:
-        nodes: list[dict[str, object]] = []
-        for name in sorted(mapping.keys()):
-            path = f"{parent_path}/{name}" if parent_path else name
-            children = to_nodes(mapping[name], path)
-            nodes.append({"name": name, "path": path, "children": children})
-        return nodes
-
-    return to_nodes(tree)
+    if not target.exists():
+        return []
+    if target == root.resolve():
+        depth = 0
+    else:
+        depth = len(target.relative_to(root.resolve()).parts)
+    if depth >= MAX_DIR_DEPTH:
+        return []
+    return sorted([p.name for p in target.iterdir() if p.is_dir() and not p.name.startswith(".")])
 
 
 @app.get("/")
 def index():
+    browse_path = (request.args.get("path") or "").strip().strip("/")
+    try:
+        resolve_target_dir(browse_path)
+    except ValueError:
+        browse_path = ""
     return render_template(
         "index.html",
-        dirs=list_directories(DOWNLOAD_ROOT),
+        browse_path=browse_path,
+        dirs=list_children(DOWNLOAD_ROOT, browse_path),
         url="",
         subdir="",
     )
@@ -73,11 +62,13 @@ def index():
 def download():
     url = (request.form.get("url") or "").strip()
     subdir = (request.form.get("subdir") or "").strip()
+    browse_path = (request.form.get("browse_path") or "").strip().strip("/")
     if not url:
         return render_template(
             "index.html",
             error="URL is required.",
-            dirs=list_directories(DOWNLOAD_ROOT),
+            browse_path=browse_path,
+            dirs=list_children(DOWNLOAD_ROOT, browse_path),
             url=url,
             subdir=subdir,
         )
@@ -88,7 +79,8 @@ def download():
         return render_template(
             "index.html",
             error=str(exc),
-            dirs=list_directories(DOWNLOAD_ROOT),
+            browse_path=browse_path,
+            dirs=list_children(DOWNLOAD_ROOT, browse_path),
             url=url,
             subdir=subdir,
         )
@@ -115,7 +107,8 @@ def download():
             "index.html",
             error="Download failed.",
             log=result.stderr or result.stdout,
-            dirs=list_directories(DOWNLOAD_ROOT),
+            browse_path=browse_path,
+            dirs=list_children(DOWNLOAD_ROOT, browse_path),
             url=url,
             subdir=subdir,
         )
@@ -124,7 +117,8 @@ def download():
         "index.html",
         success=f"Download complete. Saved under {target_dir}.",
         log=result.stdout,
-        dirs=list_directories(DOWNLOAD_ROOT),
+        browse_path=browse_path,
+        dirs=list_children(DOWNLOAD_ROOT, browse_path),
         url=url,
         subdir=subdir,
     )
