@@ -16,14 +16,32 @@
       <form method="post" action="/download" class="card">
         <label>
           Video URL
-          <input type="url" name="url" placeholder="https://..." required />
+          <input type="url" name="url" placeholder="https://..." value="{{ url or '' }}" required />
         </label>
 
         <label>
           Subdirectory under /download (optional)
-          <input type="text" name="subdir" placeholder="movies/2026" />
+          <input id="subdir-input" type="text" name="subdir" placeholder="movies/2026" value="{{ subdir or '' }}" />
           <span class="hint">Allowed: letters, numbers, dots, dashes, underscores, and /</span>
         </label>
+
+        <div class="dir-picker">
+          <div class="dir-header">
+            <strong>Pick an existing folder</strong>
+            <span class="hint">Click a folder to fill the field above. You can also type a new path to create it.</span>
+          </div>
+          {% if dirs %}
+          <div class="dir-list">
+            {% for item in dirs %}
+            <button type="button" class="dir-item" data-path="{{ item.path }}" data-depth="{{ item.depth }}">
+              {{ item.path }}
+            </button>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="hint">No folders found yet under /download.</p>
+          {% endif %}
+        </div>
 
         <button type="submit">Download</button>
       </form>
@@ -45,5 +63,13 @@
         <pre>docker run --rm -p 8000:8000 -v /path/on/host:/download dloader:latest</pre>
       </section>
     </main>
+    <script>
+      const input = document.getElementById("subdir-input");
+      document.querySelectorAll(".dir-item").forEach((button) => {
+        button.addEventListener("click", () => {
+          input.value = button.dataset.path || "";
+        });
+      });
+    </script>
   </body>
 </html>

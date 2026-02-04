@@ -11,6 +11,7 @@ app = Flask(__name__)
 
 DOWNLOAD_ROOT = Path("/download")
 SAFE_SUBDIR_RE = re.compile(r"^[a-zA-Z0-9._-]+(?:/[a-zA-Z0-9._-]+)*$")
+MAX_DIR_DEPTH = 6
 
 
 def resolve_target_dir(subdir: str) -> Path:
@@ -25,9 +26,32 @@ def resolve_target_dir(subdir: str) -> Path:
     return target
 
 
+def list_directories(root: Path) -> list[dict[str, int | str]]:
+    if not root.exists():
+        return []
+    root = root.resolve()
+    entries: list[dict[str, int | str]] = []
+    for current, dirs, _files in os.walk(root):
+        rel = Path(current).relative_to(root)
+        depth = 0 if rel == Path(".") else len(rel.parts)
+        if depth > MAX_DIR_DEPTH:
+            dirs.clear()
+            continue
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for name in sorted(dirs):
+            rel_path = (rel / name) if rel != Path(".") else Path(name)
+            entries.append({"path": rel_path.as_posix(), "depth": depth})
+    return entries
+
+
 @app.get("/")
 def index():
-    return render_template("index.html")
+    return render_template(
+        "index.html",
+        dirs=list_directories(DOWNLOAD_ROOT),
+        url="",
+        subdir="",
+    )
 
 
 @app.post("/download")
@@ -35,12 +59,24 @@ def download():
     url = (request.form.get("url") or "").strip()
     subdir = (request.form.get("subdir") or "").strip()
     if not url:
-        return render_template("index.html", error="URL is required.")
+        return render_template(
+            "index.html",
+            error="URL is required.",
+            dirs=list_directories(DOWNLOAD_ROOT),
+            url=url,
+            subdir=subdir,
+        )
 
     try:
         target_dir = resolve_target_dir(subdir)
     except ValueError as exc:
-        return render_template("index.html", error=str(exc))
+        return render_template(
+            "index.html",
+            error=str(exc),
+            dirs=list_directories(DOWNLOAD_ROOT),
+            url=url,
+            subdir=subdir,
+        )
 
     target_dir.mkdir(parents=True, exist_ok=True)
     output_template = str(target_dir / "%(title)s.%(ext)s")
@@ -64,12 +100,18 @@ def download():
             "index.html",
             error="Download failed.",
             log=result.stderr or result.stdout,
+            dirs=list_directories(DOWNLOAD_ROOT),
+            url=url,
+            subdir=subdir,
         )
 
     return render_template(
         "index.html",
         success=f"Download complete. Saved under {target_dir}.",
         log=result.stdout,
+        dirs=list_directories(DOWNLOAD_ROOT),
+        url=url,
+        subdir=subdir,
     )
 
 
