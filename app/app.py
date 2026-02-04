@@ -26,22 +26,37 @@ def resolve_target_dir(subdir: str) -> Path:
     return target
 
 
-def list_directories(root: Path) -> list[dict[str, int | str]]:
+def list_directories(root: Path) -> list[dict[str, object]]:
     if not root.exists():
         return []
     root = root.resolve()
-    entries: list[dict[str, int | str]] = []
+    tree: dict[str, dict] = {}
+
     for current, dirs, _files in os.walk(root):
         rel = Path(current).relative_to(root)
         depth = 0 if rel == Path(".") else len(rel.parts)
-        if depth > MAX_DIR_DEPTH:
+        if depth >= MAX_DIR_DEPTH:
             dirs.clear()
             continue
         dirs[:] = [d for d in dirs if not d.startswith(".")]
-        for name in sorted(dirs):
-            rel_path = (rel / name) if rel != Path(".") else Path(name)
-            entries.append({"path": rel_path.as_posix(), "depth": depth})
-    return entries
+        dirs.sort()
+
+        node = tree
+        if rel != Path("."):
+            for part in rel.parts:
+                node = node.setdefault(part, {})
+        for name in dirs:
+            node.setdefault(name, {})
+
+    def to_nodes(mapping: dict[str, dict], parent_path: str = "") -> list[dict[str, object]]:
+        nodes: list[dict[str, object]] = []
+        for name in sorted(mapping.keys()):
+            path = f"{parent_path}/{name}" if parent_path else name
+            children = to_nodes(mapping[name], path)
+            nodes.append({"name": name, "path": path, "children": children})
+        return nodes
+
+    return to_nodes(tree)
 
 
 @app.get("/")

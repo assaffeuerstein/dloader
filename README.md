@@ -11,6 +11,13 @@ docker run --rm -p 8000:8000 -v /path/on/host:/download dloader:latest
 
 Open `http://localhost:8000` and submit a URL. Optionally set a subdirectory (relative to `/download`) to place the file(s).
 
+## Run from Docker Hub
+
+```bash
+docker pull assaffeuerstein/dloader:latest
+docker run --rm -p 8000:8000 -v /path/on/host:/download assaffeuerstein/dloader:latest
+```
+
 ## Notes
 - The container expects a volume mounted at `/download`.
 - Subdirectories are validated; only letters, numbers, dots, dashes, underscores, and `/` are allowed.
